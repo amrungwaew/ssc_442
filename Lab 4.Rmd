@@ -1,0 +1,143 @@
+---
+title: "Lab 4"
+author: "Anna Jeffries"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+library(tidyverse)
+library(dplyr)
+library(pander)
+library(ggplot2)
+library(GGally)
+library(dslabs)
+```
+
+## 1. We want to answer the question: is there a poll bias? First, make a plot showing the spreads for each poll.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+data(polls_us_election_2016)
+polls <- polls_us_election_2016 %>%
+  filter(pollster %in% c("Rasmussen Reports/Pulse Opinion Research",
+                         "The Times-Picayune/Lucid") &
+           enddate >= "2016-10-15" &
+           state == "U.S.") %>%
+  mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100)
+polls$index <- 1:nrow(polls) # to distinguish individual polls run
+
+# d_hat <- polls %>%
+#   summarize(d_hat = sum(spread * samplesize) / sum(samplesize)) %>%
+#   pull(d_hat)
+# p_hat <- (d_hat+1)/2
+# moe <- 1.96 * 2 * sqrt(p_hat * (1 - p_hat) / sum(polls$samplesize))
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70), fig.height=2.5}
+ggplot(polls, aes(x = spread, y = pollster)) +
+  geom_point() + theme_minimal()
+```
+
+## 2. Which of the following best represents our question?
+
+There are a few ways of looking at this. In some respects, yes, we want to minimise the distance (in a manner of speaking) between the outcome $Y$ and $d$ because this would necessarily mean that $b$ and $\epsilon$ approach 0 the closer $Y$ and $d$ become. However, this is a little obtruse. You're probably looking for the answer that, in a more strict sense, we're interested in $b$ and how small (or not small) they are, i.e., how close to 0. 
+
+## 3. Expected value of $Y_1$?
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+y_1 <- polls %>%
+  filter(pollster=="Rasmussen Reports/Pulse Opinion Research") 
+  #summarize(N_1 = n())
+
+pander(cat("The expected value:", mean(y_1$spread))) #E(x)
+```
+
+## 4. Sample variance and standard deviation for $Y_1$? 
+
+```{r}
+s_1 <- sd(y_1$spread) # std sample
+v_1 <- s_1^2 #var (one could also use the var() function here)
+
+pander(cat("The standard deviation:", s_1))
+```
+
+
+```{r}
+pander(cat("The variance:", v_1))
+```
+
+## 5. Repeat for $Y_2$.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+y_2 <- polls %>%
+  filter(pollster!="Rasmussen Reports/Pulse Opinion Research") 
+  #summarize(N_1 = n())
+
+pander(cat("The expected value:", mean(y_2$spread))) # E(x)
+```
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+s_2 <- sd(y_2$spread) # std sample
+v_2 <- s_2^2 #var
+
+pander(cat("The standard deviation:", s_2))
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+pander(cat("The variance:", v_2))
+```
+
+
+
+## 6. CLT and the distribution of $Y_2$ - $Y_1$?
+
+This question is... confusing without a formal definition in typeset mathematical notation of the Central Limit Theorem (I would really recommend adding such a section with the general definition of the theorem and not just an example). That said, I'm inclined to say that the answer is probably option (c). Assuming the respective $N_1$ and $N_2$ are large enough and approximately normal, their difference will also be normal. 
+
+## 7.  Using the T-statistic, does $b_2 - b_1 = 0$?
+
+I'm well-acquainted with confidence intervals, but you *really* ought to actually explain the method you're using in your example code. You don't give an explanation *anywhere* which, as I'm sure you've realised by now, can cause quite a kerfuffle among students who aren't comfortable with confidence intervals and manually constructing them in R. It's just a poor pedagogical move (which, to be fair, I'm quite certain was done unintentionally—bad pedagogy is felt most acutely in the wake of good pedagogy). It should be addressed before the next iteration of this course. The wording of this question in general is quite confusing; a proper well-documented example of a two sample scenario would go a long way to help.
+
+  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+n_1 <- length(y_1$state) # sample size for y_1
+n_2 <- length(y_2$state) # sample size for y_2
+y1_avg <- mean(y_1$spread)
+y2_avg <- mean(y_2$spread)
+
+upper <- y2_avg - y1_avg + 1.96*sqrt((v_1/n_1)+(v_2/n_2))
+lower <- y2_avg - y1_avg - 1.96*sqrt((v_1/n_1)+(v_2/n_2))
+
+pander(cat("lower bound:", lower, " upper bound:", upper))
+```
+
+\   
+
+**Calculating the t-statistic manually:**  
+  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+t <- (y2_avg - y1_avg)/sqrt((v_1/n_1)+(v_2/n_2))
+t # why doesn't the sign match with the t result below?
+```
+\  
+
+**Now, I'm curious about what the t-test function says.**  
+  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+t.test(spread ~ pollster, data = polls)
+```
+\  
+
+I think one can justify the discrepancy with the signs between the base R function and the manual calculation because the base R function doesn't know which side you want, making the values appear with a negative in front. (Note: I would use pander() for pretty print, but for some unknown reason applying pander() omits the confidence interval results...)
+
+One can say that the difference between $b_1$ and $b_2$ is not 0.
+

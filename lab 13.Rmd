@@ -1,0 +1,209 @@
+---
+title: "Lab 13"
+author: "Anna Jeffries"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+library(tidyverse)
+library(dplyr)
+library(pander)
+library(ggplot2)
+library(GGally)
+library(caret)
+library(stats)
+library(lubridate)
+```
+
+## 1. Total up spending by corporation and report the biggest and smallest spenders inclusive of rooms and parking. 
+\  
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+booking <- read.csv("https://ssc442kirkpatrick.netlify.app/data/Lab11_booking.csv")
+roomrates <- read.csv("https://ssc442kirkpatrick.netlify.app/data/Lab11_roomrates.csv")
+parking <- read.csv("https://ssc442kirkpatrick.netlify.app/data/Lab11_parking.csv")
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+pander(parking) # C is the only one we care about
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+r_rates <- gather(roomrates, date, rate, `X1.1.15`:`X31.12.20`) # pivot df
+
+date_conv <- function(input) {
+  parts <- gsub("[^0-9.]", "", input) # getting rid of any non-numbers
+  nums <- strsplit(parts, "\\.")[[1]] # splitting around periods
+  date <- paste0(nums[2], "-", nums[1], "-", nums[3]) # formatting
+  return(date) # still only a character
+}
+
+new <- as.character(sapply(r_rates$date, date_conv)) # vector application
+
+dates <- as.Date(new, format = "%m-%d-%y") 
+# converting to date object outside of function bc I was not getting the expected behaviour otherwise
+r_rates$date <- dates # yy/mm/dd
+
+pander(head(r_rates))
+```
+
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+codes <- as.numeric(factor(unique(r_rates$name))) # encoding the room types
+room_dict <- setNames(codes, unique(r_rates$name)) # dict of room types and codes
+# pander(room_dict) # visual reference for second encoding below
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+r_rates$name <- room_dict[r_rates$name] # transforming column into room codes
+```
+
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+#unique(booking$room_use)
+another_dict <- setNames(c(2,4,5,1,3), unique(booking$room_use)) 
+# faster to just manually encode to match the r_rates bc the room types have different names in this df
+# pander(another_dict) # making sure they match
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+booking$room_code <- another_dict[booking$room_use] # encoding room types
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+date_trim <- function(input){
+  part <- as.character(substr(input, 1, 10)) # only taking first 10 characters
+  return (part) # still a character
+}
+
+booking$date_occupied <- sapply(booking$date_occupied, date_trim) # trimming dates
+booking$date_occupied <- as.Date(booking$date_occupied) # converting to date objects
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+booking_info <- booking %>%
+  left_join(r_rates, by = c("room_code" = "name", "date_occupied" = "date")) # joining
+```
+ 
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+corp_costs <- booking_info %>%
+  group_by(corp) %>%
+  summarize(total = sum(rate))
+arrange(corp_costs, total) # totals, sans parking
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+booking_info$parking <- ifelse(booking_info$corp == "C", 60, 0)
+c_park <- sum(booking_info$parking)
+corp_costs[3, "total"] <- c_park + corp_costs$total[3] # see footnote
+
+arrange(corp_costs, total) # totals, with parking
+```
+\  
+
+From this, we can see that Corp B spent the most at $98,317.64 and Corp D spent the least at \$78358.70.^[The ambiguity of `StayID` in `booking` has not gone without notice. In particular, this fouls up the question of Corp C and its parking expenditures. In theory, there could be a separate metric for determining how many vehicles' worth of people there are based on the number and/or type of rooms booked, thus significantly complicating the straightforward calculation of parking for Corp C that I have demonstrated above. However, since it is not otherwise stated, I have opted for the simplest approach of 1 room = 1 parking space = 1 fee of \$60 (which, in itself, is not a wholly unreasonable assumption in this context).]
+
+## 2. Visualize (using `ggplot`) each corporation’s spending at the hotel over time and by roomtype. 
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+plot_booking <- arrange(booking_info, date_occupied) %>%
+  group_by(corp, room_use) %>%
+  mutate(cumulative_rate = cumsum(rate)) # cumulative expenditure
+#plot_booking
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+custom_palette <- c("#4db36f", "#a659a8", "#e09e58", "#327ef0", "#d94643")
+
+ggplot(plot_booking, aes(x = date_occupied, 
+                         y = cumulative_rate/1000, 
+                         group = room_use, 
+                         color = room_use)) + 
+  # does not include parking, per the exercise instructions to chart by room type only
+  geom_line() +
+  facet_wrap(~corp, scales = "free_y") +
+  labs(x = "Date", y = "Cumulative Cost in $Thousands", 
+       title = "Faceted Line Plot by Corp and Expenditures") +
+  theme_minimal() + 
+  theme(
+    axis.text = element_text(size = 5), 
+    strip.text.x = element_text(size = 8),
+    axis.text.x = element_text(angle = 40, vjust = 1, hjust = .8),
+    axis.text.y = element_text(vjust = 1)
+  ) +
+    theme(
+    panel.grid.major.x = element_line(),  # Color of major grid lines
+    panel.grid.minor.x = element_blank()  # Remove minor grid lines
+  ) + theme(
+    panel.grid.major.y = element_line(),  # Color of major grid lines
+    panel.grid.minor.y = element_blank()  # Remove minor grid lines
+  ) +
+  scale_color_manual(name = "Room Type", 
+                     values = custom_palette, 
+                     labels = c("Double", "Economy", "Royal Suite", "Single", "Suite"))
+```
+## 3. Visualize (using `ggplot`) the room rates over time by room type. 
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+
+ggplot(r_rates, aes(x = date, y = rate, color = factor(name))) + 
+  geom_line(size=.2) +
+  facet_wrap(~factor(name), scales = "free_y") +
+  labs(x = "Date", y = "Daily Rate", title = "Faceted Line Plot by Room Type and Rate") +
+  theme_minimal() + 
+  theme(
+    axis.text = element_text(size = 5), 
+    strip.text.x = element_text(size = 8),
+    axis.text.x = element_text(angle = 40, vjust = 1, hjust = .8),
+    axis.text.y = element_text(vjust = 1)
+  ) +
+  scale_color_manual(name = "Room Type", values = custom_palette,labels = c("Double", "Economy", "Royal Suite", "Single", "Suite"))
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+economy_r <- r_rates %>% 
+  filter(name == 2) %>% 
+  arrange(date) %>% select(-name)
+
+econ_ts <- ts(economy_r$rate, frequency=365)
+econ_decomp <- decompose(econ_ts, type="additive")
+plot(econ_decomp)
+
+# A regular plot of economy rooms faceted by year
+# r_rates %>% filter(name == 2) %>%
+#   ggplot(aes(x = date, y = rate, color = factor(name))) + 
+#   geom_line(size=.5) +
+#   labs(x = "Date", y = "Daily Rate", title = "Faceted Line Plot of Economy Room Rate Over Time") +
+#   theme_minimal() + 
+#   theme(
+#     axis.text = element_text(size = 8), 
+#     strip.text.x = element_text(size = 12, face="bold"),
+#     axis.text.x = element_text(angle = 40, vjust = 1, hjust = .8),
+#     axis.text.y = element_text(vjust = 1)
+#   ) +
+#   facet_wrap(~format(date, "%Y"), scales = "free_x") +
+#   scale_color_manual(name = "", values = custom_palette[2], labels = "Economy Room")
+```
+
+
+I'm rusty on time series, but this is pretty straightforward between using the graph and applying common sense. There are two peaks in each year, corresponding to the summer months when people tend to vacation and the end-of-year holidays. Following basic economics, higher demand enables higher prices, so of course it makes sense that the hotel would have higher rates. This is seen in the patterns in the `seasonal` and `trend` levels of the chart.
+
+Besides that annual kind of seasonality, there's also going to be a seasonality within a given month (or week, depending on which perspective you adopt). Namely, hotels charge more on weekends, as that's when there are big events, conferences, etc. and when people are travelling and need a hotel. This seems to be awkwardly caught between the `seasonal` and `random` levels of the chart. 
+

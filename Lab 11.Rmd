@@ -1,0 +1,381 @@
+---
+title: "Lab 11"
+author: "Anna Jeffries"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+library(tidyverse)
+library(dplyr)
+library(pander)
+library(ggplot2)
+library(GGally)
+library(caret)
+library(equatiomatic)
+```
+
+## 1. Split the data into an 80/20 train vs. test split.  
+\  
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+bank <- read.table("https://raw.githubusercontent.com/ajkirkpatrick/FS20/postS21_rev/classdata/bank.csv",
+                 header = TRUE,
+                 sep = ",")
+bank <- bank %>% select(-default)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+set.seed(13)
+split_pct <- 0.8
+n <- length(bank$y) * split_pct # train size
+row_samp <- sample(1:length(bank$y), n, replace = FALSE)
+
+convert_to_numeric <- function(col) {
+  if (!is.numeric(col)) {
+    as.numeric(as.factor(col))
+  } else {
+    col
+  }
+}
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+bank_num <- data.frame(lapply(bank, convert_to_numeric))
+bank_num$y <- ifelse(bank_num$y == 1, 0, 1)
+train_num <- bank_num[row_samp,]
+test_num <- bank_num[-row_samp,]
+```
+
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+# train_num$y <- relevel(factor(train_num$y), ref="1") 
+# # I....think? this is what needs to be done, because otherwise it's treating 0 as the positive class otherwise
+# test_num$y <- relevel(factor(test_num$y), ref="1")
+```
+
+
+
+## 2. Run a series of logistic regressions with between 1 and 4 predictors.  
+
+### Model 1  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+glm_binom1 <- glm(y ~ balance + education + loan + duration, data = train_num, family="binomial")
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+glm_binom_train_pred1 <- predict(glm_binom1, train_num, type = "response")
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+glm_binom_test_pred1 <- predict(glm_binom1, test_num, type = "response")
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+
+```
+
+```{r}
+
+```
+
+
+### Model 2
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+glm_binom2 <- glm(y ~ balance, data = train_num, family="binomial")
+glm_binom_train_pred2 <- predict(glm_binom2, train_num, type = "response")
+glm_binom_test_pred2 <- predict(glm_binom2, test_num, type = "response")
+pander(summary(glm_binom2))
+```
+
+### Model 3
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+glm_binom3 <- glm(y ~ loan + previous + duration, data = train_num, family="binomial")
+glm_binom_train_pred3 <- predict(glm_binom3, train_num, type = "response")
+glm_binom_test_pred3 <- predict(glm_binom3, test_num, type = "response")
+pander(summary(glm_binom3))
+```
+ 
+
+### Model 4
+
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+glm_binom4 <- glm(y ~ marital + job + housing, data = train_num, family="binomial")
+glm_binom_train_pred4 <- predict(glm_binom4, train_num, type = "response")
+glm_binom_test_pred4 <- predict(glm_binom4, test_num, type = "response")
+pander(summary(glm_binom4))
+```
+
+ 
+ 
+## Create eight total confusion matrices: four by applying your models to the training data, and four by applying your models to the test data. Briefly discuss your findings.
+
+
+
+### Model 1
+
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+extract_eq(glm_binom1)
+```
+
+### Model 1 Training  
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+simple_train1 <- ifelse(glm_binom_train_pred1 > 0.5, 1, 0)
+simple_train1 <- relevel(factor(simple_train1), ref="1") 
+cm_1_train <- confusionMatrix(as.factor(simple_train1), reference=as.factor(train_num$y))
+
+pander(cm_1_train$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_1_train$overall["Accuracy"])
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_1_train$byClass["F1"])
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Train 1:", sensitivity(cm_1_train$table)))
+pander(cat("Specificity Train 1:", specificity(cm_1_train$table)))
+```
+
+
+
+### Model 1 Testing  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+k <- length(glm_binom_test_pred1)
+simple_test1 <- rep(0, k)
+simple_test1[glm_binom_test_pred1 >= 0.5] <- 1
+cm_1_test <- confusionMatrix(as.factor(simple_test1), reference=as.factor(test_num$y))
+
+pander(cm_1_test$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_1_test$overall["Accuracy"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_1_test$byClass["F1"])
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Test 1:", sensitivity(cm_1_test$table)))
+pander(cat("Specificity Test 1:", specificity(cm_1_test$table)))
+```
+
+
+### Model 2
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+extract_eq(glm_binom2)
+```
+
+### Model 2 Training
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+simple_train2 <- rep(0, n)
+simple_train2[glm_binom_train_pred2 >= 0.5] <- 1
+cm_2_train <- confusionMatrix(as.factor(simple_train2), reference=as.factor(train_num$y))
+
+pander(cm_2_train$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_2_train$overall["Accuracy"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_2_train$byClass["F1"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Train 2:", sensitivity(cm_2_train$table)))
+pander(cat("Specificity Train 2:", specificity(cm_2_train$table)))
+```
+
+
+
+### Model 2 Testing
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+simple_test2 <- rep(0, k)
+simple_test2[glm_binom_test_pred2 >= 0.5] <- 1
+cm_2_test <- confusionMatrix(as.factor(simple_test2), reference=as.factor(test_num$y))
+
+pander(cm_2_test$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_2_test$overall["Accuracy"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_2_test$byClass["F1"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Test 2:", sensitivity(cm_2_test$table)))
+pander(cat("Specificity Test 2:", specificity(cm_2_test$table)))
+```
+
+### Model 3
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+extract_eq(glm_binom3)
+```
+
+### Model 3 Training
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+simple_train3 <- rep(0, n)
+simple_train3[glm_binom_train_pred3 >= 0.5] <- 1
+cm_3_train <- confusionMatrix(as.factor(simple_train3), reference=as.factor(train_num$y))
+
+pander(cm_3_train$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_3_train$overall["Accuracy"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_3_train$byClass["F1"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Train 3:", sensitivity(cm_3_train$table)))
+pander(cat("Specificity Train 3:", specificity(cm_3_train$table)))
+```
+
+### Model 3 Testing
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+simple_test3 <- rep(0, k)
+simple_test3[glm_binom_test_pred3 >= 0.5] <- 1
+cm_3_test <- confusionMatrix(as.factor(simple_test3), reference=as.factor(test_num$y))
+
+pander(cm_3_test$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_3_test$overall["Accuracy"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_3_test$byClass["F1"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Test 3:", sensitivity(cm_3_test$table)))
+pander(cat("Specificity Test 3:", specificity(cm_3_test$table)))
+```
+
+
+### Model 4
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+extract_eq(glm_binom4)
+```
+
+### Model 4 Training
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+simple_train4 <- rep(0, n)
+simple_train4[glm_binom_train_pred4 >= 0.5] <- 1
+cm_4_train <- confusionMatrix(as.factor(simple_train4), reference=as.factor(train_num$y))
+
+pander(cm_4_train$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_4_train$overall["Accuracy"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_4_train$byClass["F1"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Train 4:", sensitivity(cm_4_train$table)))
+pander(cat("Specificity Train 4:", specificity(cm_4_train$table)))
+```
+
+### Model 4 Testing
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+simple_test4 <- rep(0, k)
+simple_test4[glm_binom_test_pred4 >= 0.5] <- 1
+cm_4_test <- confusionMatrix(as.factor(simple_test4), reference=as.factor(test_num$y))
+
+pander(cm_4_test$table)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_4_test$overall["Accuracy"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cm_4_test$byClass["F1"])
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+pander(cat("Sensitivity Test 4:", sensitivity(cm_4_test$table)))
+pander(cat("Specificity Test 4:", specificity(cm_4_test$table)))
+```
+
+
+---
+
+Well, first off, all of my models appear to largely suck and to only have decent results by virtue of the fact that the data is unbalanced in the favourable direction. Alarm bells always go off when there are neat 1s and 0s popping up in model metrics. Part of this might have to do with the variable level coding issue I mentioned earlier and from what perspective one is considering positives and negatives.
+
+Models 4 and 2 were especially rubbish, though this is expected as their predictors aren't all that relevant to the outcome, compared to the predictors in models 1 and 3. Of course, here one must quibble about what is considered "good" and "bad" in this particular context. Models 4 and 2 don't predict a single true negative, despite having relatively high metric scores, but this inability to predict true negatives (in this rendering, a true negative being a default = default) is especially bad in a banking scenario. (Note, the confusion matrices have the predicted values on the vertical axis and ground truth on the horizontal axis.)   

@@ -1,0 +1,169 @@
+---
+title: "SSC 442 Project"
+author: "Anna Jeffries, Dom Molotky, and Daniel Odunlami"
+date: "`r Sys.Date()`"
+output: pdf_document
+urlcolor: blue
+mainfont: DejaVu Sans
+font-family: Times New Roman
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+library(tidyverse)
+library(stats)
+library(ggplot2)
+library(GGally)
+library(caret)
+library(janitor)
+library(lubridate)
+library(pander)
+library(countrycode)
+library(WDI)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+bls <- read_csv("BLS_Weekly_Earnings.csv")
+# Employment, Hours, and Earnings from the Current Employment Statistics survey (National)
+# Series Title	:	Average weekly earnings of all employees, 1982-1984 dollars, total private, seasonally adjusted
+# Series ID	:	CES0500000012
+# Seasonality	:	Seasonally Adjusted
+# Survey Name	:	Employment, Hours, and Earnings from the Current Employment Statistics survey (National)
+# Measure Data Type	:	AVERAGE WEEKLY EARNINGS OF ALL EMPLOYEES, 1982-1984 DOLLARS
+# Industry	:	Total private
+# Sector	:	Total private
+# https://beta.bls.gov/dataViewer/view/timeseries/CES0500000012
+# 
+# goog <- read_csv("Google_Search_Series.csv")
+# google https://trends.google.com/trends/explore?date=2017-12-11%202023-12-12&geo=US&q=generative%20ai,large%20language%20models,chatgpt%20jobs&hl=en-US
+# unused so far
+# 
+wom <- read_csv("LEU0254690700A_Women.csv")
+men <- read_csv("LEU0254583700A_Men.csv")
+# Wage and salary workers are workers who receive wages, salaries, commissions, tips, payment in kind, or piece rates. The group includes employees in both the private and public sectors but, for the purposes of the earnings series, it excludes all self-employed persons, both those with incorporated businesses and those with unincorporated businesses. For more information see https://www.bls.gov/cps/earnings.htm
+# The series comes from the 'Current Population Survey (Household Survey)'
+# The source code is: LEU0254690500
+# Suggested Citation:
+# U.S. Bureau of Labor Statistics, Employed full time: Wage and salary workers: Computer and mathematical occupations: 16 years and over: Women [LEU0254690500A], retrieved from FRED, Federal Reserve Bank of St. Louis; https://fred.stlouisfed.org/series/LEU0254690500A, December 12, 2023.
+# 
+wage <- read_csv("Avg_Wage_Gendered.csv")
+# In 2021, Computer & mathematical occupations earned an average of $99,386, $39,790 more than the average national salary of $59,596
+# The graph shows the ranking of Computer & mathematical occupations in relation to all Broad Occupation in 2021.
+# Data from the Census Bureau ACS PUMS 5-Year Estimate. https://datausa.io/profile/soc/computer-mathematical-occupations?employment-measures=avgWageEOT
+# 
+# oews <- read_csv("OEWS_Annual_MatchCompSci.csv")
+# https://www.bls.gov/oes/current/oes150000.htm
+# unused so far
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+# 
+cpi = WDI(country = "USA", indicator = 'FP.CPI.TOTL', start = 2018, end = 2023)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+wom <- wom %>% rename("Total" = "LEU0254690700A") %>% mutate(Total = Total*1000) # scaling back to original
+men <- men %>% rename("Total" = "LEU0254583700A") %>% mutate(Total = Total*1000) # scaling back to original
+
+wage <- wage %>% select(Year, `ID Gender`, Gender,  `Average Wage`, `Average Wage Appx MOE`)
+
+bls <- bls %>% select(Year, Label, Value)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+cpi <- cpi %>% select(year, FP.CPI.TOTL) %>% rename("Value" = "FP.CPI.TOTL")
+```
+
+```{r}
+bls$date <- parse_date_time(bls$Label, orders = "Yb") # get date from label
+bls <- bls %>% select(-Label)
+wage$date <- as.Date(paste0(wage$Year, "-01-01")) # give date to wage
+```
+
+```{r}
+wom$Year <- year(wom$DATE) # extract year
+men$Year <- year(wom$DATE) # extract year
+```
+
+```{r}
+wom <- wom %>% select(Total, Year) %>% rename("Women_in_CS_Math" = "Total") # rename value
+new <- merge(bls, wom, by="Year", all.x=TRUE) # join 1
+
+men <- men %>% select(Total, Year) %>% rename("Men_in_CS_Math" = "Total") # rename value
+new2 <- merge(new, men, by="Year", all.x=TRUE) # join 2
+
+wage <- wage %>% select(Year, Gender, `Average Wage`, `Average Wage Appx MOE`) # subset
+new3 <- merge(new2, wage, by="Year", all.x=TRUE) # join 3
+
+cpi <- cpi %>% rename("Year" = "year", "CPI" = "Value") # rename values
+new4 <- merge(new3, cpi, by="Year", all.x=TRUE) # join 4
+new4 <- new4 %>% rename("Avg_Weekly_Wages" = "Value") # rename values
+```
+
+```{r}
+# Commented out - code used to get the SEX BY OCCUPATION AND MEDIAN EARNINGS (IN THE PAST 12 MONTHS) IN 2018 INFLATION-ADJUSTED DOLLARS YEAR-ROUND CIVILIAN EMPLOYED POPULATION 16 YEARS AND OVER
+# by both MALE and FEMALE in the occupation field "Computer and mathematical occupations"
+# Cannot figure out how to get the MEAN from ACS as from the wage source (https://datausa.io/profile/soc/computer-mathematical-occupations?employment-measures=avgWageEOT)
+# taking MEDIAN instead
+
+# library(sf)
+# library(mapview)
+# library(tigris)
+# library(tidycensus)
+# library(tmaptools)
+# library(patchwork)
+# library(viridis)
+# options(tigris_use_cache = TRUE) # trying to silence those god awful warnings
+# census_api_key("3aedf5f6fc0a0b8f3cab9d8f6981ede417d30c67")
+
+# data <- get_acs(
+#   geography = "us",
+#   variables = c(male_mdn = 'B24022_008', fem_mdn = 'B24022_044'),
+#   year = 2022,
+#   geometry = F,
+#   progress_bar = FALSE,
+#   output = 'wide'
+# )
+```
+
+```{r}
+new_2022 <- new4 %>% filter(Year==2022) %>% slice(rep(1:n(), each = 2)) 
+# only taking last part with missing values for 2022; rep'ing each line to accommodate male/female observations
+new_2022$Gender <- rep(c("Male","Female"), length.out=nrow(new_2022)) # manually filling Gender
+new_2022$`Average Wage` <- rep(c(104850, 89380), length.out=nrow(new_2022)) # manually filling wage (with median, not mean)
+new_2022$`Average Wage Appx MOE` <- rep(c(260, 440), length.out=nrow(new_2022)) # manually filling MOE
+new_2022 <- new_2022 %>% arrange(date) # arrange by date
+# new_2022
+```
+
+
+```{r}
+newish <- new4 %>% filter(Year != 2022) # removing 2022 since that's what we'll be adding
+final <- rbind(newish, new_2022) # binding together; effectively concat'ing dfs together since they share columns
+final %>% arrange(date) # arrange by chronological order
+# in final: mean weakly wages by MONTH, total number of males/females in Math/CompSci occupations, mean wage by GENDER, mean margin of error (MOE) by GENDER, consumer price index (CPI)
+```
+
+```{r}
+# Ideas:
+# # visuals:
+# # # male/female year wage trend vs. weekly avg (see what extent pay is better for math/cs occupations, overall and/or by gender) 
+# # # male/female year wage trend vs. CPI (do they move together; overall and/or by gender)
+# # # weekly avg wage vs. CPI
+# # # number of male/female workers in math/cs (by thousands) vs. year wage (more people = more or less overall pay?)
+# # # male vs. female avg year wage (discrepancy--does the proportion between the 2 stay consistent? change?)
+# # # male vs. female avg year wage in terms of MOE (does deviation get smaller/bigger/etc., consistent?)
+# # more generally:
+# # # COVID-19 in March/April 2020 - consider trends before vs. after
+# # # maybe could do something w/ google search trends re ai and chatgpt; unfortunately no data into 2023, only really at the end of 2022
+# # # predictive modelling: we can look at trends between weekly avg, yearly wage, CPI, number of ppl in math/cs workforce and then try to predict one of them by forecasting for the next couple years
+# # # 
+```
+

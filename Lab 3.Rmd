@@ -1,0 +1,89 @@
+---
+title: "Lab 3"
+author: "Anna Jeffries"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+## 1. Use data from the US Bureau of Labor Statistics (BLS) to show the trends in employment rate for all 50 states plus DC between 2006 and 2016. What stories does this plot tell? Which states struggled to recover from the 2008–09 recession?
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+library(tidyverse)
+library(dplyr)
+library(pander)
+library(ggplot2)
+library(GGally)
+library(ggbump)
+```
+
+
+For a more meaningful picture, we'd *really* want to see what industries and types of employment that make up the composition for each state. However, one's data is never satisfactory, so, c'est la vie. There's no state whose unemployment rate didn't noticeably suffer from the 2008 recession. Some of the low-population states display a much lesser magnitude than their higher population counterparts (i.e., Alaska, Nebraska, and North Dakota). Conversely, the top three worst states were California, Michigan, and Nevada. Again, though. the data is fairly meaningless when it's still missing like 75% of the other crucial contextual information.
+
+
+Of note, I'm surprised by the relative lack of impact demonstrated in West Virginia, particularly when compared with the neighbouring state of Ohio. I'm particularly curious about this because I spent two years working for a law firm that was intimately involved with the massive amount of litigation stemming from the Opioid Crisis, of which Ohio and West Virginia make up a significant proportion (boasting the MDL and the sites of the tracks 1-3 trials). The 2008 recession was, quite naturally, implicated as one of the catalysts, so my interest is piqued by what this data is showing.
+
+\  
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60),fig.height=40,fig.width=30}
+dat <- read_csv("unemployment.csv")
+ggplot(dat, aes(x=date,y=unemployment,colour=region))+
+  geom_line(size=1.2)+
+  facet_wrap(~state,ncol = 3)+
+  xlab("Year")+
+  ylab("Unemployment (unit of measure unknown)")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle=45, vjust=1,size=16),axis.text.y = element_text(size=16), legend.text = element_text(size=16), legend.title = element_text(size=20), axis.title = element_text(size=18), strip.text.x = element_text(size = 18))+
+  labs(colour="Country Region")
+
+```
+
+
+\  
+
+## 2. Use data from the BLS to create a slopegraph that compares the unemployment rate in January 2006 with the unemployment rate in January 2009, either for all 50 states at once (good luck with that!) or for a specific region or division. What story does this plot tell? Which states in the US (or in the specific region you selected) were the most/least affected the Great Recession?
+
+
+The majority of states experienced an increase from January 2006 to January 2016. I'm no population expert, but it just occurred to me that overall population increase in absolute terms could be one of many factors for this increase (we'd also want demographic information). Of states that experienced a *decrease* in the same time period, it appears that Michigan experienced the largest overall decrease. In contrast, the states of Alabama, Nevada, and New Mexico seem to have the largest increases. 
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60),fig.height=40,fig.width=30}
+dat %>% 
+  filter(date == '2006-01-01' | date == '2016-01-01') %>%
+  ggplot(aes(x=date,y=unemployment,group=state))+
+  geom_line(aes(colour=region), size=1.2)+
+  geom_point(aes(colour=region),size=2)+
+  facet_wrap(~state,ncol = 3)+
+  xlab("Date")+
+  ylab("Unemployment (unit of measure unknown)")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle=45, vjust=1,size=16),axis.text.y = element_text(size=16), legend.text = element_text(size=16), legend.title = element_text(size=20), axis.title = element_text(size=18), strip.text.x = element_text(size = 18))+
+  labs(colour="Country Region")
+
+```
+
+
+## The top and bottom 10 (for funsies).
+
+\  
+
+```{r fig.height=20,fig.width=40}
+dat_sort <- dat %>% arrange(-desc(date), desc(unemployment))
+dat_sort$rank <- rep(1:51,len=length(dat_sort$state)) # ugly, but it works
+
+dat_sort %>% #filter(rank > 50 | rank < 11) %>%
+  ggplot(aes(x=date, y=desc(rank), color = state)) +
+  geom_line(size=.6)+
+  geom_point(size=.8)+
+  ylab("Unemployment Rank (1-51)")+
+  xlab("Date")+
+  labs(color = "States")
+```
+

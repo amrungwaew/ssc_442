@@ -1,0 +1,222 @@
+---
+title: "SSC 442 Project"
+author: "Anna Jeffries, Dom Molotky, and Daniel Odunlami"
+date: "`r Sys.Date()`"
+output: pdf_document
+urlcolor: blue
+mainfont: DejaVu Sans
+font-family: Times New Roman
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+library(tidyverse)
+library(stats)
+library(ggplot2)
+library(GGally)
+library(caret)
+library(janitor)
+library(lubridate)
+library(pander)
+library(countrycode)
+library(WDI)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+refugees_raw <- read_csv("refugee_status.csv", na = c("-", "X", "D"))
+# 
+non_countries <- c("Africa", "Asia", "Europe", "North America", "Oceania",
+                    "South America", "Unknown", "Other", "Total")
+```
+
+## KP cleaning code
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+refugees_clean_wdi <- refugees_raw %>%
+  rename(origin_country = `Continent/Country of Nationality`) %>%
+  dplyr::filter(!(origin_country %in% non_countries)) %>%
+  mutate(iso2 = countrycode(origin_country, "country.name", "iso2c",
+                            custom_match = c("Korea, North" = "KP"))) %>%
+  mutate(origin_country = countrycode(iso2, "iso2c", "country.name"),
+         origin_region = countrycode(iso2, "iso2c", "region"),
+         origin_continent = countrycode(iso2, "iso2c", "continent")) %>%
+  gather(year, number, -origin_country, -iso2, -origin_region, -origin_continent) %>%
+  mutate(year = as.numeric(year),
+         year_date = ymd(paste0(year, "-01-01")),
+         iso2c = iso2)
+```
+
+
+Getting WDI info.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+myData1 = WDI(country = refugees_clean_wdi$iso2, indicator = 'SP.POP.TOTL', start = 2006, end = 2015)
+myData2 = WDI(country = refugees_clean_wdi$iso2, indicator = 'PV.EST', start = 2006, end = 2015) 
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+myData_merged = left_join(myData1, myData2, by = c('iso2c','year','iso3c','country')) 
+```
+
+Merging WDI info with clean df.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+refugees_wdi_merged = left_join(refugees_clean_wdi, myData_merged, by = c('iso2c','year')) %>%
+      dplyr::select(-country)
+refugees_wdi_merged <- refugees_wdi_merged %>% select(-iso2c)
+colnames(refugees_wdi_merged)[colnames(refugees_wdi_merged) == "SP.POP.TOTL"] <- "origin_country_pop"
+colnames(refugees_wdi_merged)[colnames(refugees_wdi_merged) == "PV.EST"] <- "origin_country_stable"
+```
+
+
+Getting the top countries (determined by cumulative sum of refugees over the decade).
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+top_countries <- merged_total %>% 
+  group_by(origin_country) %>%
+  summarize(total_sum = sum(number, na.rm=T)) %>% 
+  filter(origin_country != "Somalia") %>%
+  arrange(desc(total_sum)) %>%
+  top_n(4, total_sum) %>%
+  pull(origin_country)
+
+top_six <- merged_total %>% filter(origin_country %in% top_countries)
+top_six$origin_country_stable_scale <- abs(top_six$origin_country_stable)*10000 #scaling
+```
+
+
+Simpler df.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+simple <- top_six %>% select(year, origin_country, origin_country_pop, number, iso3, origin_country_stable_scale, origin_country_stable)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+donut1 <- simple %>%
+  group_by(year) %>%
+  mutate(
+    fraction = number / sum(number),
+    percent = fraction * 100,
+    ymax = cumsum(fraction),
+    ymin = lag(ymax, default = 0),
+    labelPosition = (ymax + ymin) / 2,
+    label = paste0(origin_country, "\n", number)
+  )
+```
+
+Donut plot.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+custom_palette <- c("#74B593", "#935795", "#C3A07B", "#648ACF")
+p <- ggplot(donut1, aes(ymax = ymax, ymin = ymin, xmax = 9, xmin = 6, fill = origin_country)) +
+  geom_rect(width=4) +
+ # geom_text(x = 18, aes(y = labelPosition, label = label, color = origin_country), size = 2.9, fontface = "bold") +
+  coord_polar(theta = "y") +
+  xlim(c(-3, 20)) +
+  facet_wrap(~factor(year)) +
+  theme_void() + scale_fill_manual(values = custom_palette) +
+  scale_color_manual(values = custom_palette) + labs(fill = "Origin Country", color = "Origin Country") +    
+  theme(strip.text = element_text(size = 12)) + theme(text = element_text(family = "Verdana"))
+
+
+# Add percentage annotations
+p + geom_text(x=18, aes(y = labelPosition, label = sprintf("%.2f%%", percent), color = origin_country),
+              size = 3, fontface = "bold")
+```
+
+
+```{r}
+top_six_2015 <- top_six %>%
+  filter(year == 2015)
+
+# Calculate the cumulative sum for each origin_country
+top_six_2015 <- top_six_2015 %>%
+  group_by(origin_country) %>%
+  mutate(cumulative_sum_2015 = cumsum(number))
+
+# Plot the cumulative bar chart for the year 2015
+ggplot(top_six_2015, aes(x = origin_country, y = cumulative_sum_2015, fill = origin_country)) +
+  geom_bar(stat = "identity", width=.5) +
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  xlab("Origin Country") + ylab("Cumulative Number in 2015") + scale_fill_manual(values = custom_palette) +
+  geom_text(aes(label = cumulative_sum_2015, color = origin_country), vjust = -0.5, size = 3, fontface = "bold", show.legend=F) +
+  theme(
+    panel.grid.major.x = element_blank(),  # Color of major grid lines
+    panel.grid.minor.x = element_blank()  # Remove minor grid lines
+  ) + theme(
+    panel.grid.major.y = element_line(),  # Color of major grid lines
+    panel.grid.minor.y = element_blank()  # Remove minor grid lines
+  ) + scale_colour_manual(values = custom_palette) + theme(text = element_text(family = "Verdana")) + theme(
+    axis.text.x = element_text(size = 7, angle = 40, vjust = 1, hjust = 0.8),
+    axis.text.y = element_text(size = 6),
+    axis.title.y = element_text(size = 8, face="bold"),
+    axis.title.x = element_text(size = 8, face="bold")
+  )
+```
+
+
+
+Stability trend lines, not scaled.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+ggplot(simple, aes(x=year, y=origin_country_stable, colour=origin_country)) + 
+    geom_line() + theme_minimal() + scale_colour_manual(values = custom_palette) + labs(colour = "Origin Country") +
+  ylab("Estimated Stability and Absence of Violence (Scaled by 10,000)") +
+  theme(axis.text = element_text(size = 5), axis.title = element_text(size = 9, face="bold")) +
+  scale_x_continuous(breaks = 2006:2015) +
+    theme(
+    panel.grid.major.x = element_blank(),  # Color of major grid lines
+    panel.grid.minor.x = element_blank()  # Remove minor grid lines
+  ) + theme(
+    panel.grid.major.y = element_line(),  # Color of major grid lines
+    panel.grid.minor.y = element_blank()  # Remove minor grid lines
+  ) +
+  theme(axis.text.x = element_text(angle=40, vjust=1, hjust=.8),
+                                axis.text.y = element_text(size=6)) +
+  geom_hline(yintercept = 0, color = "black", size = .4,linetype = "twodash") + theme(text = element_text(family = "Verdana"))
+
+```
+
+Stability +/- stacked bar chart for stability trend.
+
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+ggplot(simple, aes(fill = origin_country, y = origin_country_stable, x = year)) + 
+  geom_bar(position = "dodge", stat = "identity") + 
+  scale_fill_manual(values = custom_palette) + scale_color_manual(values = custom_palette) + labs(fill = "Origin Country") +
+  ylab("Estimated Stability and Absence of Violence (Scaled by 10,000)") + xlab("Year") +
+  theme(axis.text = element_text(size = 5)) +
+  scale_x_continuous(breaks = 2006:2015) + theme_minimal() +
+  theme(
+    panel.grid.major.x = element_blank(),  # Color of major grid lines
+    panel.grid.minor.x = element_blank(),  # Remove minor grid lines
+    panel.grid.major.y = element_line(),   # Color of major grid lines
+    panel.grid.minor.y = element_blank()    # Remove minor grid lines
+  ) +
+  theme(
+    axis.text.x = element_text(size = 5, angle = 40, vjust = 1, hjust = 0.8),
+    axis.text.y = element_text(size = 6),
+    axis.title.y = element_text(size = 8, face="bold"),
+    axis.title.x = element_text(size = 8, face="bold")
+  ) +
+  geom_hline(yintercept = 0, color = "black", size = .4,linetype = "twodash")  +
+  ylim(c(-3.5, 2.5)) +
+   geom_text(aes(label = round(origin_country_stable,2), 
+                y = ifelse(origin_country_stable >= 0, origin_country_stable + 0.12, origin_country_stable - 0.2), colour=origin_country), 
+            position = position_dodge(width = 0.9), 
+            vjust = 0,
+            size = 2, face="bold", show.legend=F) +
+  theme(text = element_text(family = "Verdana"))
+```
+
+
+

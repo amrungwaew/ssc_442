@@ -1,0 +1,155 @@
+---
+title: "Lab 5"
+author: "Anna Jeffries"
+date: "`r Sys.Date()`"
+output: pdf_document 
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+library(tidyverse)
+library(dplyr)
+library(pander)
+library(ggplot2)
+library(GGally)
+library(dslabs)
+library(equatiomatic)
+library(corrplot)
+```
+
+## 1. Figure out where the 1460-1379 = 81 rows of data are going when using `model.matrix`.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+ameslist  <- read.table(
+  'https://raw.githubusercontent.com/ajkirkpatrick/FS20/postS21_rev/classdata/ames.csv', 
+                   header = TRUE,
+                   sep = ',') 
+GarageTemp <- model.matrix( ~ GarageType - 1, data=ameslist )
+
+# sum(is.na(ameslist$GarageType))
+ameslist_0 <- ameslist[!is.na(ameslist$GarageType),] # those pesky NAs
+
+ameslist <- cbind(ameslist_0, GarageTemp) # yeet haw
+ameslist$GarageOutside <- ifelse(ameslist$GarageTypeDetchd == 1 | ameslist$GarageTypeCarPort == 1, 1, 0)
+
+ameslist <- ameslist[!is.na(ameslist$GarageOutside),] # yeeting those NAs
+```
+
+I am electing to drop these missing rows. Garage data aside, I doubt there's anything particularly special about the missing entries. It's not a trivial percentage of data we're losing, admittedly, but this is a low-stakes kind of context and I don't want to bother with a complicated imputation for a binary variable right now. 
+
+## 2. Prune the data to 6-8 of the variables that are `type = int` about which you have some reasonable intuition for what they mean. 
+
+Choose those that you believe are likely to be correlated with `SalePrice.` This must include the variable `SalePrice` and `GrLivArea.` Save this new dataset as `Ames`.  
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+#glimpse(ameslist)
+
+ames <- ameslist[c('SalePrice', 'GrLivArea', 'OverallQual', 'OverallCond','LotArea', 'YearBuilt','YearRemodAdd')]
+
+```
+
+```{r echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+tabl <- "
+| **Variable**   | **Definition**              | **Value**     |
+|--------|:-----------------|:--------|
+| GrLivArea      | Total livable area | Positive integer |
+| OverallQual      | Some score of house quality      |   Positive integer |
+| OverallCond | Some score of house condition       |    Positive integer |
+| LotArea      | Area of the lot in square feet | Positive integer |
+| YearBuilt | Year the house was built      |    Positive integer |
+| YearRemodAdd      | Year the remodel was added (if at all) | Positive integer |
+| SalePrice      | Price of house sale      |   Positive integer |
+"
+cat(tabl) # output the table in a format good for HTML/PDF/docx conversion
+```
+
+## 3. Produce a scatterplot matrix.
+\  
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+ggpairs(ames, 
+        upper = list(continuous = wrap("cor", size = 2.5)),
+        lower = list(continuous = wrap("points", alpha = 0.3,    size=0.5))) + 
+        theme_minimal() + theme(axis.text = element_text(size = 5), 
+                                strip.text.x = element_text(size = 5),
+                                strip.text.y = element_text(size = 5, angle=0),
+                                axis.text.x = element_text(angle=40, vjust=1, hjust=.8),
+                                axis.text.y = element_text(vjust=1, hjust=.8)) 
+        # what an absolute pain in the ass
+```
+
+## 4. Compute a matrix of correlations between these variables. 
+
+Do the correlations match your prior beliefs? Briefly discuss the correlation between the chosen variables and SalePrice and any correlations between these variables.  
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+ggcorr(ames, method=c("everything",'pearson'), progress=FALSE, label=TRUE, label_size=3)
+```
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+pander(cor(ames))
+```
+
+Overall, there are some pretty strong correlations among the variables. As expected, though, the strongest correlations are between `GRLivArea`, `OverallQual`, and `SalePrice`. There's also a fairly strong relationship between `YearBuilt` and `YearRemodAdd`. As noted previously, `YearRemodAdd` is a complete field. One could rhapsodise upon the general correlation between the year a house is built and the year a remodel is added (but this depends heavily on what the definition fo `YearRemodAdd` is), or perhaps theorise that some small number of realtors or developers owned and/or remodeled the homes in an en masse sort of fashion and used some kind of function to determine when a house needed to be remodeled. 
+
+## 5. Produce a scatterplot between `SalePrice` and `GrLivArea`. Run a linear model using `lm()` to explore the relationship. Finally, use the `geom_abline()` function to plot the relationship that you’ve found in the simple linear regression.
+
+What is the largest outlier that is above the regression line? Produce the other information about this house.  
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70), fig.height=4}
+ggplot(ames, aes(x=GrLivArea, y=SalePrice, color=factor(OverallQual))) + geom_point(size=.5) + 
+  geom_smooth(method=lm , color="red", se=T, size=.5) + 
+  theme_minimal() + labs(color="OverallQual")
+```
+\  
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+mod <- lm(SalePrice ~ GrLivArea, ames)
+pander(summary(mod))
+```
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+ggplot(ames, aes(x=GrLivArea, y=SalePrice, color=factor(OverallQual))) + geom_point(size=.5) + 
+  theme_minimal() + labs(color="OverallQual") + 
+  geom_abline(mod,slope=107.8, intercept=20042, color="red")
+```
+\  
+
+Well, well, well, if `geom_abline()` doesn't give me the exact same results as `geom_smooth()`....  
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+# ameslist[order(ameslist$SalePrice, ameslist$GrLivArea,decreasing=T),c("Id","GrLivArea","SalePrice")]
+
+# pander(ameslist[ameslist$Id == 692,])
+```
+\  
+Finding the "largest outlier" is a bit tricky here. Visually, we can observe the dots above the regression line in our graph that appear to boast the *largest selling prices* and we can index to find the relevant information from the dataset. *However*, in terms of actual "largest outlier," we'd want to look at the residuals to determine the "largest"....  
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+# which(mod$residuals == max(mod$residuals))
+# pander(ameslist[c(850,899),])
+```
+
+
+
+## Bonus.
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=70)}
+# table(ameslist$CentralAir )
+
+ggplot(ameslist, aes(x=YearBuilt, y=SalePrice, color=factor(CentralAir))) + geom_point(size=.5) + 
+  theme_minimal() + labs(color="Central Air?") + scale_color_manual(values=c('red', 'darkgreen'))
+```
+

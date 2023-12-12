@@ -1,0 +1,108 @@
+---
+title: "Lab 9"
+author: "Anna Jeffries"
+date: "`r Sys.Date()`"
+output: pdf_document 
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE,message=FALSE, fig.align='center')
+```
+
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+library(tidyverse)
+library(dplyr)
+library(pander)
+library(ggplot2)
+library(GGally)
+library(caret)
+```
+
+### 1. Split the data into an 80/20 train vs. test split.  
+\  
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+bank <- read.table("https://raw.githubusercontent.com/ajkirkpatrick/FS20/Spring2021/classdata/bank.csv",
+                 header = TRUE,
+                 sep = ",")
+bank <- bank %>% select(-default)
+```
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+set.seed(122)
+split_pct <- 0.8
+n <- length(bank$y) * split_pct # train size
+row_samp <- sample(1:length(bank$y), n, replace = FALSE)
+
+convert_to_numeric <- function(col) {
+  if (!is.numeric(col)) {
+    as.numeric(as.factor(col))
+  } else {
+    col
+  }
+}
+
+bank_num <- data.frame(lapply(bank, convert_to_numeric))
+bank_num$y <- ifelse(bank_num$y == 1, 0, 1)
+train_num <- bank_num[row_samp,]
+test_num <- bank_num[-row_samp,]
+```
+
+
+### 2. Run a series of KNN models with $k$ ranging from 2 to 100.  
+\  
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=68)}
+train_rmse <- list()
+test_rmse <- list()
+
+for (i in seq(from = 2, to = 100, by = 2)){
+  knn_mod <- knnreg(y ~ ., data = train_num, k = i)
+  training <- predict(knn_mod, train_num)
+  train_acc <- sum(training == train_num$y) / length(train_num$y)
+  train_rmse <- append(train_rmse, train_acc)
+  
+  testing <- predict(knn_mod, test_num)
+  test_acc <- sum(testing == test_num$y) / length(test_num$y)
+  test_rmse <- append(test_rmse, test_acc)
+}
+```
+
+
+### Create a chart plotting the model complexity as the $x$-axis variable and RMSE as the $y$-axis variable for both the training and test data. What do you think is the optimal $k$?  
+\  
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=50)}
+results <- data.frame(Complexity = seq(from = 2, to = 100, by = 2), Train_RMSE = unlist(train_rmse), Test_RMSE = unlist(test_rmse))
+
+ggplot(results, aes(Complexity)) +
+  geom_point(aes(y = Train_RMSE, fill = "Train RMSE"), shape = 21, size = 1.2, alpha=.8) +
+  geom_point(aes(y = Test_RMSE, fill = "Test RMSE"), shape = 23, size = 1.2, alpha=.8) +
+  scale_fill_manual(values = c("Train RMSE" = "darkgreen", "Test RMSE" = "red")) +
+  labs(fill = "Type") + 
+  theme(legend.title = element_text(size = 12)) +
+  ylab("RMSE") + 
+  xlab("Complexity (tuning K)") + 
+  theme_minimal()
+```
+  
+\  
+
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+ggplot(results, aes(Complexity)) +
+  geom_line(aes(y = Train_RMSE), color = "darkgreen") + 
+  geom_line(aes(y = Test_RMSE), color = "red") + 
+  labs(color = "Type") + 
+  theme(legend.title = element_text(size = 12)) +
+  ylab("RMSE") + xlab("Complexity (tuning K)") + theme_minimal()
+```  
+\  
+
+This lab was kind of confusing because of how much factor conversion and finagling needed to be done. The wording should probably be cleaned up (e.g., `knnreg` *cannot* take in categorical variables as-is, and we're really calculating *accuracy* since the response variable is binary).... But anyways, assuming I managed to do things correctly, it's readily apparent that the RMSE gets smaller overall as $k$ increases. So, really, the "cut-off" is going to depend on what's "good enough" with the given problem or goal. 

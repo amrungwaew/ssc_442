@@ -1,0 +1,17 @@
+ID Year,Year,ID Gender,Gender,ID Workforce Status,Workforce Status,ID Nation,Nation,ID Broad Occupation,Broad Occupation,Average Wage,Average Wage Appx MOE
+2021,"2021",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",104836.60775004969,978.1231241822411
+2021,"2021",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",83796.69132387481,1224.361872326339
+2020,"2020",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",98162.22816106207,923.8945088976651
+2020,"2020",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",78621.53578504153,1147.6264588644326
+2019,"2019",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",95044.2788127486,900.945671973186
+2019,"2019",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",76399.92791202529,1129.0029295108898
+2018,"2018",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",91771.69159708939,874.3552907254646
+2018,"2018",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",73814.17315649796,1084.6165900424774
+2017,"2017",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",88947.36308904852,857.2315333551815
+2017,"2017",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",72637.0604573049,1070.203926126298
+2016,"2016",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",85770.84067870477,835.4059783387388
+2016,"2016",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",70398.89393044756,1040.7617551852054
+2015,"2015",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",83782.6672536415,815.7836604420676
+2015,"2015",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",69486.87220979224,1031.8126679707343
+2014,"2014",1,"Male","true","true","01000US","United States","150000","Computer & mathematical occupations",83218.851583702,811.0061481074548
+2014,"2014",2,"Female","true","true","01000US","United States","150000","Computer & mathematical occupations",69267.31879402608,1031.779422441212
